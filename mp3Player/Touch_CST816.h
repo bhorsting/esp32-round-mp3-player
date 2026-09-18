@@ -4,6 +4,8 @@
 #include "TCA9554PWR.h"
 
 #define CST816_ADDR           0x15
+#define CST816_SDA_PIN        1
+#define CST816_SCL_PIN        3
 #define CST816_INT_PIN        4
 #define CST816_RST_PIN        -1                      // EXIO1
 #define I2C_MASTER_FREQ_HZ    400000                     /*!< I2C master clock frequency */

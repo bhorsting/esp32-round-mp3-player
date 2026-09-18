@@ -61,7 +61,7 @@ void Lvgl_Init(void)
   disp_drv.hor_res = LCD_WIDTH;
   disp_drv.ver_res = LCD_HEIGHT;
   disp_drv.flush_cb = Lvgl_Display_LCD;
-  disp_drv.full_refresh = 1;                    /**< 1: Always make the whole screen redrawn*/
+  disp_drv.full_refresh = 0;
   disp_drv.draw_buf = &draw_buf;
   lv_disp_drv_register( &disp_drv );
 

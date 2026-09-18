@@ -3,6 +3,7 @@
 
 #define I2C_SCL_PIN       10
 #define I2C_SDA_PIN       11
+#define I2C_MASTER_FREQ_HZ 100000
 
 void I2C_Init(void);
 

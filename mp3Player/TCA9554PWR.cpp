@@ -5,11 +5,12 @@ uint8_t Read_REG(uint8_t REG)                             // Read the value of t
 {
   Wire.beginTransmission(TCA9554_ADDRESS);                
   Wire.write(REG);                                        
-  uint8_t result = Wire.endTransmission();               
+  uint8_t result = Wire.endTransmission(false);               
   if (result != 0) {                                     
     printf("Data Transfer Failure !!!\r\n");
+    return 0;
   }
-  Wire.requestFrom(TCA9554_ADDRESS, 1);                   
+  Wire.requestFrom((int)TCA9554_ADDRESS, 1);                   
   uint8_t bitsStatus = Wire.read();                        
   return bitsStatus;                                     
 }
