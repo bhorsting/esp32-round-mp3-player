@@ -4,6 +4,7 @@
 #include "LVGL_Driver.h"
 #include "BAT_Driver.h"
 #include "CoverArt.h"
+#include "GifPlayer.h"
 #include <ESP32Time.h>
 #include "USBProtocol.h"
 #include "USBCommandDispatcher.h"
@@ -68,10 +69,12 @@ void Play_Music_test() {
   int dot = playingSong.lastIndexOf('.');
   if (dot > 0) playingSong = playingSong.substring(0, dot);
 
-  if (ret)
+  if (ret) {
     printf("Music Read OK: %s\r\n", audioFiles[chosenFile].c_str());
-  else
+    GifPlayer_OnTrackChanged();
+  } else {
     printf("Music Read Failed: %s\r\n", audioFiles[chosenFile].c_str());
+  }
 }
 
 void audio_id3image(File &file, const size_t pos, const size_t size) {
@@ -218,6 +221,7 @@ void setup()
   TCA9554PWR_Init(0x00);
   SD_Init();
   listFiles(SD_MMC, "/", MAX_FILES);
+  GifPlayer_ScanFiles();
   Audio_Init();
   Play_Music_test();
 
@@ -347,6 +351,7 @@ void Driver_Loop(void *parameter)
   lv_obj_move_foreground(ui_Button2);
   lv_obj_move_foreground(ui_Button3);
   lv_obj_move_foreground(ui_Button4);
+  GifPlayer_InitUI();
   setPlayButtonPlaying(true);
   int lastChosen = -1;
   bool lastPlaying = true;
@@ -354,6 +359,7 @@ void Driver_Loop(void *parameter)
   {
     Lvgl_Loop();
     CoverArt_poll();
+    GifPlayer_Poll();
 
     if (millis() > batTime + 1000)
     {

@@ -11,6 +11,17 @@ class WebUSBManager {
     // must go through one queue - otherwise a read() call meant for one
     // consumer can silently swallow bytes the other consumer needed.
     this.rx_queue = [];
+
+    // At most one reader.read() call may ever be in flight (see
+    // _ensureReading() below) - Promise.race cannot cancel its losing
+    // side, so racing a fresh read() against a per-iteration timeout and
+    // discarding it on timeout orphans that read: it keeps running, and
+    // whatever chunk it eventually resolves with is lost because nothing
+    // is listening for it anymore. Larger, multi-packet responses (a big
+    // directory listing) are exactly when a sub-read is likely to outlast
+    // a short timeout, so this reliably drops a chunk in the middle of
+    // the response - explains truncated/misaligned reads under load.
+    this._pendingReadPromise = null;
   }
 
   async connect() {
@@ -25,6 +36,7 @@ class WebUSBManager {
       this.writer = this.port.writable.getWriter();
       this.connected = true;
       this.rx_queue = [];
+      this._pendingReadPromise = null;
 
       console.log('[Serial] Connected to device');
       return true;
@@ -56,6 +68,7 @@ class WebUSBManager {
     }
     this.connected = false;
     this.rx_queue = [];
+    this._pendingReadPromise = null;
   }
 
   async sendCommand(cmd_type, payload = null) {
@@ -83,21 +96,47 @@ class WebUSBManager {
     }
   }
 
-  // Pull more bytes from the port into rx_queue. Returns false on timeout
-  // (queue may or may not have grown), throws if the port closes.
-  async _fillQueue(timeout_ms) {
-    const { value, done } = await Promise.race([
-      this.reader.read(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeout_ms))
+  // Returns the single in-flight reader.read() call, starting one if none
+  // is outstanding. Callers may race this against a timeout and give up
+  // on *waiting* for it, but the read itself is never abandoned - its
+  // .then() below always runs and pushes the chunk into rx_queue whether
+  // or not anyone was actively waiting when it resolved, so no data is
+  // ever lost to an impatient caller moving on.
+  _ensureReading() {
+    if (!this._pendingReadPromise) {
+      const p = this.reader.read().then(({ value, done }) => {
+        this._pendingReadPromise = null;
+        if (done || !value) {
+          throw new Error('Port closed');
+        }
+        for (let i = 0; i < value.length; i++) {
+          this.rx_queue.push(value[i]);
+        }
+      });
+      // Keep console quiet if this rejects while nothing happens to be
+      // racing it at that moment - the real rejection still reaches
+      // whichever caller *does* await `this._pendingReadPromise` later,
+      // since a promise can have multiple independent handlers.
+      p.catch(() => {});
+      this._pendingReadPromise = p;
+    }
+    return this._pendingReadPromise;
+  }
+
+  // Waits for at least one more chunk to land in rx_queue, or gives up
+  // (without losing the in-flight read) once `deadline` (Date.now()-based
+  // ms) passes.
+  async _waitForMoreData(deadline) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return;
+    // The timeout branch resolves (not rejects) - "gave up waiting" is
+    // not an error here, it just means loop back and check rx_queue /
+    // the overall deadline again. Only a real read failure (e.g. "Port
+    // closed") should propagate as a rejection.
+    await Promise.race([
+      this._ensureReading(),
+      new Promise((resolve) => setTimeout(resolve, Math.min(remaining, 100)))
     ]);
-
-    if (done || !value) {
-      throw new Error('Port closed');
-    }
-
-    for (let i = 0; i < value.length; i++) {
-      this.rx_queue.push(value[i]);
-    }
   }
 
   // Read exactly one raw byte (used for YMODEM ACK/NAK/CAN control bytes).
@@ -106,16 +145,12 @@ class WebUSBManager {
       throw new Error('Device not connected');
     }
 
-    const start_time = Date.now();
+    const deadline = Date.now() + timeout_ms;
     while (this.rx_queue.length === 0) {
-      if (Date.now() - start_time >= timeout_ms) {
+      if (Date.now() >= deadline) {
         throw new Error('Byte receive timeout');
       }
-      try {
-        await this._fillQueue(100);
-      } catch (e) {
-        if (e.message !== 'timeout') throw e;
-      }
+      await this._waitForMoreData(deadline);
     }
     return this.rx_queue.shift();
   }
@@ -126,7 +161,7 @@ class WebUSBManager {
       throw new Error('Device not connected');
     }
 
-    const start_time = Date.now();
+    const deadline = Date.now() + timeout_ms;
 
     while (true) {
       if (this.rx_queue.length >= 3) {
@@ -140,16 +175,12 @@ class WebUSBManager {
         }
       }
 
-      if (Date.now() - start_time >= timeout_ms) {
+      if (Date.now() >= deadline) {
         console.error(`[Serial] Timeout. Queue has ${this.rx_queue.length} bytes:`, this.rx_queue.slice(0, 20));
         throw new Error('Response timeout');
       }
 
-      try {
-        await this._fillQueue(100);
-      } catch (e) {
-        if (e.message !== 'timeout') throw e;
-      }
+      await this._waitForMoreData(deadline);
     }
   }
 
