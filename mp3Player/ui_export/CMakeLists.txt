@@ -6,6 +6,7 @@ SET(SOURCES ui_Screen1.c
     ui_img_711420211.c
     ui_img_239613141.c
     ui_img_1691442077.c
+    ui_img_389595065.c
     ui_img_izrezak_png.c
     fonts/ui_font_COUNTER.c
     fonts/ui_font_HUGE.c
