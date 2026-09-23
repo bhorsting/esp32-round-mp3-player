@@ -112,11 +112,11 @@ uint16_t Folder_retrieval(const char* directory, const char* fileExtension, char
 
 void Flash_test()
 {
-  printf("/********** RAM Test**********/\r\n");
+  // printf("/********** RAM Test**********/\r\n");
   // Get Flash size
   uint32_t flashSize = ESP.getFlashChipSize();
   Flash_Size = flashSize/1024/1024;
-  printf("Flash size: %d MB \r\n", flashSize/1024/1024);
+  // printf("Flash size: %d MB \r\n", flashSize/1024/1024);
 
-  printf("/******* RAM Test Over********/\r\n\r\n");
+  // printf("/******* RAM Test Over********/\r\n\r\n");
 }

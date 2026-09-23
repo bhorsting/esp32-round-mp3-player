@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MP3 Player - File Manager</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>MP3 Player File Manager</h1>
+      <div class="header-right">
+        <div id="connectionStatus" class="status disconnected">
+          <span class="status-light"></span>
+          <span class="status-text">Disconnected</span>
+        </div>
+        <button id="connectBtn" class="btn-primary">Connect</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="content-grid">
+        <!-- Left panel: Storage stats and navigation -->
+        <aside class="sidebar">
+          <section class="storage-stats">
+            <h3>Storage</h3>
+            <div id="storageInfo" class="storage-info">
+              <div class="storage-bar">
+                <div id="storageUsed" class="storage-used"></div>
+              </div>
+              <div class="storage-text">
+                <span id="storagePercent">0%</span>
+                <span id="storageSize" class="storage-detail">0 MB / 0 MB</span>
+              </div>
+            </div>
+            <button id="refreshStatsBtn" class="btn-secondary" disabled>Refresh</button>
+          </section>
+
+          <section class="navigation">
+            <h3>Navigation</h3>
+            <div id="breadcrumb" class="breadcrumb">
+              <button class="breadcrumb-item active" data-path="/">Root</button>
+            </div>
+            <button id="createDirBtn" class="btn-secondary" disabled>New Folder</button>
+          </section>
+
+          <section class="filters">
+            <h3>Filter</h3>
+            <label>
+              <input type="radio" name="filter" value="0" checked> All files
+            </label>
+            <label>
+              <input type="radio" name="filter" value="1"> MP3 only
+            </label>
+            <label>
+              <input type="radio" name="filter" value="2"> GIF only
+            </label>
+          </section>
+        </aside>
+
+        <!-- Right panel: File list and upload -->
+        <section class="main-content">
+          <section class="file-list-section">
+            <h2>Files</h2>
+            <div id="fileList" class="file-list">
+              <div class="file-list-empty">Connect to device to see files</div>
+            </div>
+          </section>
+
+          <section class="upload-section">
+            <h2>Upload</h2>
+            <div class="upload-area" id="uploadArea">
+              <p>Drop files here or click to select</p>
+              <input id="fileInput" type="file" multiple hidden>
+            </div>
+            <div id="uploadStatus" class="upload-status hidden">
+              <div class="upload-progress">
+                <div class="progress-bar">
+                  <div id="uploadProgressBar" class="progress-bar-fill"></div>
+                </div>
+              </div>
+              <div id="uploadText" class="upload-text">Ready</div>
+            </div>
+          </section>
+        </section>
+      </div>
+    </main>
+
+    <!-- Notifications -->
+    <div id="notifications" class="notifications"></div>
+  </div>
+
+  <script src="js/webusb-manager.js"></script>
+  <script src="js/protocol-parser.js"></script>
+  <script src="js/ymodem-sender.js"></script>
+  <script src="js/file-manager-ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
