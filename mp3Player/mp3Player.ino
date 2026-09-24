@@ -272,7 +272,7 @@ void setup()
 void changeSong(lv_event_t * e)
 {
   if (xSemaphoreTake(audio_mutex, portMAX_DELAY)) {
-    chosenFile = lv_roller_get_selected(ui_Roller1);
+    if (ui_Roller3) chosenFile = lv_roller_get_selected(ui_Roller3);
     xSemaphoreGive(audio_mutex);
   }
 }
@@ -288,13 +288,16 @@ void toggleBrightnessMode(lv_event_t * e)
       if (brightnessControlMode) {
         // Enter brightness mode
         brightnessActivatedTime = now;
-        lv_slider_set_range(ui_Slider1, 0, 100);
-        lv_slider_set_value(ui_Slider1, Brightness, LV_ANIM_OFF);
+        lv_arc_set_range(ui_Arc1, 0, 100);
+        lv_arc_set_value(ui_Arc1, Brightness);
+        if (ui_Label9) lv_label_set_text(ui_Label9, "BRIGHT");
+        lv_label_set_text(ui_volumeLBL2, String(Brightness).c_str());
       } else {
         // Exit brightness mode, return to volume
-        lv_slider_set_range(ui_Slider1, 0, 21);
-        lv_slider_set_value(ui_Slider1, Volume, LV_ANIM_OFF);
-        lv_label_set_text(ui_volumeLBL, String(Volume).c_str());
+        lv_arc_set_range(ui_Arc1, 1, 21);
+        lv_arc_set_value(ui_Arc1, Volume);
+        if (ui_Label9) lv_label_set_text(ui_Label9, "VOLUME");
+        lv_label_set_text(ui_volumeLBL2, String(Volume).c_str());
       }
     }
     lastTrackPress = now;
@@ -305,19 +308,18 @@ void toggleBrightnessMode(lv_event_t * e)
 void changeVolume(lv_event_t * e)
 {
   if (xSemaphoreTake(audio_mutex, portMAX_DELAY)) {
-    int sliderValue = lv_slider_get_value(ui_Slider1);
+    int arcValue = lv_arc_get_value(ui_Arc1);
 
     if (brightnessControlMode) {
-      // In brightness mode, adjust brightness
       changeIsMade = true;
-      Brightness = sliderValue;
-      lv_label_set_text(ui_volumeLBL, String(Brightness).c_str());
+      Brightness = arcValue;
+      lv_label_set_text(ui_volumeLBL2, String(Brightness).c_str());
+      brightnessActivatedTime = millis();
     } else {
-      // In volume mode, adjust volume
       changeIsMade = true;
       volumePressed = true;
-      Volume = sliderValue;
-      lv_label_set_text(ui_volumeLBL, String(Volume).c_str());
+      Volume = arcValue;
+      lv_label_set_text(ui_volumeLBL2, String(Volume).c_str());
     }
     xSemaphoreGive(audio_mutex);
   }
@@ -325,21 +327,26 @@ void changeVolume(lv_event_t * e)
 
 static void setPlayButtonPlaying(bool playing) {
   isPlaying = playing;
-  if (!ui_Button1) return;
-  lv_obj_set_style_bg_color(
-    ui_Button1,
-    lv_color_hex(playing ? 0xE67E22 : 0x4A9193),
+  if (!ui_Button8) return;
+  // Playing → show Pause icon; paused → show Play icon.
+  lv_obj_set_style_bg_img_src(
+    ui_Button8,
+    playing ? &ui_img_1040054024 : &ui_img_1417965892,
     LV_PART_MAIN | LV_STATE_DEFAULT
   );
 }
 
 void playSelected(lv_event_t * e)
 {
+  // Combined Play/Pause on Button8.
   if (xSemaphoreTake(audio_mutex, portMAX_DELAY)) {
-    // Capture roller selection on the UI thread at press time.
-    if (ui_Roller1) chosenFile = lv_roller_get_selected(ui_Roller1);
     changeIsMade = true;
-    playPressed = true;
+    if (isPlaying) {
+      stopPressed = true;
+    } else {
+      if (ui_Roller3) chosenFile = lv_roller_get_selected(ui_Roller3);
+      playPressed = true;
+    }
     xSemaphoreGive(audio_mutex);
   }
 }
@@ -364,7 +371,7 @@ void prevSelected(lv_event_t * e)
 
 void stopSelected(lv_event_t * e)
 {
-  // Pause button — toggle pause via Audio::pauseResume(), not stopSong()
+  // Kept for Screen1 compatibility; Screen2 uses playSelected as Play/Pause.
   if (xSemaphoreTake(audio_mutex, portMAX_DELAY)) {
     changeIsMade = true;
     stopPressed = true;
@@ -381,6 +388,23 @@ static int batteryPercent(float volts) {
   return (int)((volts - vmin) * 100.0f / (vmax - vmin) + 0.5f);
 }
 
+static lv_obj_t *createCircularCoverViewport() {
+  // Arc1 is 150×150 at (-1, -69). Cover sits inside the ring, under Play.
+  // Must be an lv_img: CoverArt_begin calls lv_img_set_src on the viewport.
+  const lv_coord_t coverD = 118;
+  lv_obj_t *cover = lv_img_create(ui_Screen2);
+  lv_obj_set_size(cover, coverD, coverD);
+  lv_obj_set_align(cover, LV_ALIGN_CENTER);
+  lv_obj_set_x(cover, -1);
+  lv_obj_set_y(cover, -69);
+  lv_obj_clear_flag(cover, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(cover, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_style_bg_opa(cover, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_style_border_width(cover, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(cover, 0, LV_PART_MAIN);
+  return cover;
+}
+
 void Driver_Loop(void *parameter)
 {
   I2C_Init();
@@ -393,34 +417,51 @@ void Driver_Loop(void *parameter)
   Lvgl_Init();
   ui_init();
   delay(1000);
-  fill_song_roller(ui_Roller1);
-  // Initialize volume slider
-  lv_slider_set_range(ui_Slider1, 0, 21);
-  lv_slider_set_value(ui_Slider1, Volume, LV_ANIM_OFF);
-  lv_label_set_text(ui_volumeLBL, String(Volume).c_str());
-  // Register brightness mode toggle on MP3 label (double-tap to enter brightness mode)
-  lv_obj_add_event_cb(ui_Label8, toggleBrightnessMode, LV_EVENT_PRESSED, NULL);
-  // Decorative panels stay clickable by default and sit under controls —
-  // disable hit-testing so they cannot steal play/pause/next taps.
-  lv_obj_clear_flag(ui_Panel1, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_clear_flag(ui_Panel2, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_clear_flag(ui_Panel3, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_clear_flag(ui_Panel4, LV_OBJ_FLAG_CLICKABLE);
-  // Grow hit targets only — do not override SquareLine positions.
-  lv_obj_set_ext_click_area(ui_Button1, 16);
-  lv_obj_set_ext_click_area(ui_Button2, 24);
-  lv_obj_set_ext_click_area(ui_Button3, 16);
-  lv_obj_set_ext_click_area(ui_Button4, 16);
-  lv_obj_move_foreground(ui_Button1);
-  lv_obj_move_foreground(ui_Button2);
-  lv_obj_move_foreground(ui_Button3);
-  lv_obj_move_foreground(ui_Button4);
-  CoverArt_begin(ui_coverart);
-  // Keep transport controls above cover art.
-  lv_obj_move_foreground(ui_Button1);
-  lv_obj_move_foreground(ui_Button2);
-  lv_obj_move_foreground(ui_Button3);
-  lv_obj_move_foreground(ui_Button4);
+  fill_song_roller(ui_Roller3);
+  if (chosenFile >= 0 && chosenFile < fileCount) {
+    lv_roller_set_selected(ui_Roller3, chosenFile, LV_ANIM_OFF);
+  }
+  // Volume arc + label
+  // Studio's REVERSE + wraparound angles + full-box hit testing makes the
+  // value jump when the finger is near the center or the open semicircle.
+  // Keep a top semicircle (left=min → right=max), hit-test only the ring.
+  lv_arc_set_mode(ui_Arc1, LV_ARC_MODE_NORMAL);
+  lv_arc_set_rotation(ui_Arc1, 180);
+  lv_arc_set_bg_angles(ui_Arc1, 0, 180);
+  lv_arc_set_range(ui_Arc1, 1, 21);
+  lv_arc_set_value(ui_Arc1, Volume);
+  lv_arc_set_change_rate(ui_Arc1, 720);
+  lv_obj_add_flag(ui_Arc1, LV_OBJ_FLAG_ADV_HITTEST);
+  lv_obj_set_style_arc_width(ui_Arc1, 14, LV_PART_MAIN);
+  lv_obj_set_style_arc_width(ui_Arc1, 14, LV_PART_INDICATOR);
+  // Soft knob so it doesn't look like a second control in the ring.
+  lv_obj_set_style_bg_opa(ui_Arc1, LV_OPA_COVER, LV_PART_KNOB);
+  lv_obj_set_style_pad_all(ui_Arc1, 4, LV_PART_KNOB);
+  lv_label_set_text(ui_volumeLBL2, String(Volume).c_str());
+  // Double-tap VOLUME label to enter brightness mode
+  if (ui_Label9) {
+    lv_obj_add_event_cb(ui_Label9, toggleBrightnessMode, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_flag(ui_Label9, LV_OBJ_FLAG_CLICKABLE);
+  }
+  // Grow hit targets — do not override SquareLine positions.
+  lv_obj_set_ext_click_area(ui_Button6, 16);
+  lv_obj_set_ext_click_area(ui_Button7, 16);
+  lv_obj_set_ext_click_area(ui_Button8, 20);
+
+  lv_obj_t *cover = createCircularCoverViewport();
+  CoverArt_begin(cover);
+
+  // Z-order: cover under arc ring under transport buttons
+  lv_obj_move_foreground(ui_Arc1);
+  lv_obj_move_foreground(ui_Button6);
+  lv_obj_move_foreground(ui_Button7);
+  lv_obj_move_foreground(ui_Button8);
+  lv_obj_move_foreground(ui_Roller3);
+  if (ui_timeLBL2) lv_obj_move_foreground(ui_timeLBL2);
+  if (ui_volumeLBL2) lv_obj_move_foreground(ui_volumeLBL2);
+  if (ui_Label9) lv_obj_move_foreground(ui_Label9);
+  if (ui_Label11) lv_obj_move_foreground(ui_Label11);
+
   GifPlayer_InitUI();
   // Play startup GIF (loops indefinitely until clicked)
   GifPlayer_PlayStartup("MARTEN.gif");
@@ -437,9 +478,10 @@ void Driver_Loop(void *parameter)
     if (brightnessControlMode && brightnessActivatedTime > 0 &&
         millis() - brightnessActivatedTime > BRIGHTNESS_MODE_TIMEOUT) {
       brightnessControlMode = false;
-      lv_slider_set_range(ui_Slider1, 0, 21);
-      lv_slider_set_value(ui_Slider1, Volume, LV_ANIM_OFF);
-      lv_label_set_text(ui_volumeLBL, String(Volume).c_str());
+      lv_arc_set_range(ui_Arc1, 1, 21);
+      lv_arc_set_value(ui_Arc1, Volume);
+      if (ui_Label9) lv_label_set_text(ui_Label9, "VOLUME");
+      lv_label_set_text(ui_volumeLBL2, String(Volume).c_str());
       brightnessActivatedTime = 0;
     }
 
@@ -447,16 +489,16 @@ void Driver_Loop(void *parameter)
     {
       batTime = millis();
       int pct = batteryPercent(BAT_Get_Volts());
-      lv_label_set_text(ui_Label1, (String(pct) + "%").c_str());
+      if (ui_Label11) lv_label_set_text(ui_Label11, (String(pct) + "%").c_str());
       if (isPlaying)
-        lv_label_set_text(ui_timeLBL, rtc.getTime().substring(3, 8).c_str());
+        lv_label_set_text(ui_timeLBL2, rtc.getTime().substring(3, 8).c_str());
       else
-        lv_label_set_text(ui_timeLBL, "00:00");
+        lv_label_set_text(ui_timeLBL2, "00:00");
     }
 
     if (chosenFile != lastChosen && chosenFile >= 0 && chosenFile < fileCount) {
       lastChosen = chosenFile;
-      lv_roller_set_selected(ui_Roller1, chosenFile, LV_ANIM_ON);
+      lv_roller_set_selected(ui_Roller3, chosenFile, LV_ANIM_ON);
     }
     if (isPlaying != lastPlaying) {
       lastPlaying = isPlaying;

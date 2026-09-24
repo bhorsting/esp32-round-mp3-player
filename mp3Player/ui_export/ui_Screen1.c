@@ -51,7 +51,7 @@ void ui_event_Button4( lv_event_t * e) {
     lv_event_code_t event_code = lv_event_get_code(e);
 
 if ( event_code == LV_EVENT_RELEASED) {
-      prevSelected( e );
+      nextSelected( e );
 }
 }
 
@@ -69,9 +69,9 @@ lv_obj_set_style_bg_opa(ui_Screen1, 255, LV_PART_SCROLLBAR| LV_STATE_DEFAULT);
 lv_obj_set_style_border_width(ui_Screen1, 0, LV_PART_SCROLLBAR| LV_STATE_DEFAULT);
 
 ui_Panel3 = lv_obj_create(ui_Screen1);
-lv_obj_set_width( ui_Panel3, 182);
-lv_obj_set_height( ui_Panel3, 326);
-lv_obj_set_x( ui_Panel3, -69 );
+lv_obj_set_width( ui_Panel3, 226);
+lv_obj_set_height( ui_Panel3, 336);
+lv_obj_set_x( ui_Panel3, -90 );
 lv_obj_set_y( ui_Panel3, -4 );
 lv_obj_set_align( ui_Panel3, LV_ALIGN_CENTER );
 lv_obj_clear_flag( ui_Panel3, LV_OBJ_FLAG_SCROLLABLE );    /// Flags
@@ -81,7 +81,7 @@ lv_obj_set_style_border_width(ui_Panel3, 0, LV_PART_MAIN| LV_STATE_DEFAULT);
 
 ui_Panel2 = lv_obj_create(ui_Screen1);
 lv_obj_set_width( ui_Panel2, 161);
-lv_obj_set_height( ui_Panel2, 319);
+lv_obj_set_height( ui_Panel2, 334);
 lv_obj_set_x( ui_Panel2, 109 );
 lv_obj_set_y( ui_Panel2, -4 );
 lv_obj_set_align( ui_Panel2, LV_ALIGN_CENTER );
@@ -107,7 +107,7 @@ ui_Label1 = lv_label_create(ui_Screen1);
 lv_obj_set_width( ui_Label1, LV_SIZE_CONTENT);  /// 1
 lv_obj_set_height( ui_Label1, LV_SIZE_CONTENT);   /// 1
 lv_obj_set_x( ui_Label1, 165 );
-lv_obj_set_y( ui_Label1, 321 );
+lv_obj_set_y( ui_Label1, 323 );
 lv_label_set_text(ui_Label1,"100%");
 lv_obj_set_style_text_color(ui_Label1, lv_color_hex(0x20B2DE), LV_PART_MAIN | LV_STATE_DEFAULT );
 lv_obj_set_style_text_opa(ui_Label1, 255, LV_PART_MAIN| LV_STATE_DEFAULT);
@@ -204,8 +204,8 @@ lv_obj_set_style_bg_opa(ui_Slider1, 0, LV_PART_KNOB| LV_STATE_DEFAULT);
 ui_Label3 = lv_label_create(ui_Screen1);
 lv_obj_set_width( ui_Label3, LV_SIZE_CONTENT);  /// 1
 lv_obj_set_height( ui_Label3, LV_SIZE_CONTENT);   /// 1
-lv_obj_set_x( ui_Label3, -26 );
-lv_obj_set_y( ui_Label3, -139 );
+lv_obj_set_x( ui_Label3, -29 );
+lv_obj_set_y( ui_Label3, -137 );
 lv_obj_set_align( ui_Label3, LV_ALIGN_CENTER );
 lv_label_set_text(ui_Label3,"PLAYLIST");
 lv_obj_set_style_text_color(ui_Label3, lv_color_hex(0x4A9194), LV_PART_MAIN | LV_STATE_DEFAULT );
@@ -260,7 +260,7 @@ ui_Label2 = lv_label_create(ui_Screen1);
 lv_obj_set_width( ui_Label2, LV_SIZE_CONTENT);  /// 1
 lv_obj_set_height( ui_Label2, LV_SIZE_CONTENT);   /// 1
 lv_obj_set_x( ui_Label2, -32 );
-lv_obj_set_y( ui_Label2, 148 );
+lv_obj_set_y( ui_Label2, 150 );
 lv_obj_set_align( ui_Label2, LV_ALIGN_CENTER );
 lv_label_set_text(ui_Label2,"BAT:");
 lv_obj_set_style_text_color(ui_Label2, lv_color_hex(0x4A7594), LV_PART_MAIN | LV_STATE_DEFAULT );
@@ -280,7 +280,7 @@ lv_obj_set_style_text_font(ui_timeLBL, &ui_font_COUNTER, LV_PART_MAIN| LV_STATE_
 ui_Label4 = lv_label_create(ui_Screen1);
 lv_obj_set_width( ui_Label4, LV_SIZE_CONTENT);  /// 1
 lv_obj_set_height( ui_Label4, LV_SIZE_CONTENT);   /// 1
-lv_obj_set_x( ui_Label4, -25 );
+lv_obj_set_x( ui_Label4, -27 );
 lv_obj_set_y( ui_Label4, -158 );
 lv_obj_set_align( ui_Label4, LV_ALIGN_CENTER );
 lv_label_set_text(ui_Label4,"MARTEN");
@@ -349,7 +349,7 @@ lv_obj_set_style_border_width(ui_Panel9, 0, LV_PART_MAIN| LV_STATE_DEFAULT);
 ui_Panel10 = lv_obj_create(ui_Screen1);
 lv_obj_set_width( ui_Panel10, 56);
 lv_obj_set_height( ui_Panel10, 51);
-lv_obj_set_x( ui_Panel10, -103 );
+lv_obj_set_x( ui_Panel10, -105 );
 lv_obj_set_y( ui_Panel10, -158 );
 lv_obj_set_align( ui_Panel10, LV_ALIGN_CENTER );
 lv_obj_clear_flag( ui_Panel10, LV_OBJ_FLAG_SCROLLABLE );    /// Flags

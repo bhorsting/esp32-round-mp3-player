@@ -211,7 +211,9 @@ void CoverArt_begin(lv_obj_t *viewport) {
   lv_img_set_src(s_viewport, NULL);
   lv_obj_set_size(s_viewport, s_viewW, s_viewH);
   lv_obj_set_style_pad_all(s_viewport, 0, LV_PART_MAIN);
-  lv_obj_set_style_radius(s_viewport, 8, LV_PART_MAIN);
+  // Square viewports (Screen2 circle under play) get a circular clip.
+  lv_coord_t radius = (s_viewW == s_viewH) ? LV_RADIUS_CIRCLE : 8;
+  lv_obj_set_style_radius(s_viewport, radius, LV_PART_MAIN);
   lv_obj_set_style_clip_corner(s_viewport, true, LV_PART_MAIN);
   lv_obj_set_style_bg_opa(s_viewport, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_set_style_border_width(s_viewport, 0, LV_PART_MAIN);

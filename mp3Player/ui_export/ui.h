@@ -39,6 +39,7 @@ LV_IMG_DECLARE( ui_img_1417965892);   // assets/Steve-Zondicons-Play.48.png
 LV_IMG_DECLARE( ui_img_1040054024);   // assets/Pictogrammers-Material-Pause.48.png
 LV_IMG_DECLARE( ui_img_1053183376);   // assets/Steve-Zondicons-Forward-Step.48.png
 LV_IMG_DECLARE( ui_img_prev_step);   // assets/Steve-Zondicons-Backward-Step.48.png
+LV_IMG_DECLARE( ui_img_art6_png);   // assets/art6.png
 
 // FONTS
 LV_FONT_DECLARE( ui_font_COUNTER);
