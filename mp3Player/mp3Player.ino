@@ -8,6 +8,8 @@
 #include <ESP32Time.h>
 #include "USBProtocol.h"
 #include "USBCommandDispatcher.h"
+#include "PreferencesManager.h"
+#include "Display_ST77916.h"
 
 ESP32Time rtc(0);
 
@@ -36,9 +38,17 @@ int playingIndex = -1;
 String playingSong = "";
 Audio audio;
 uint8_t Volume = 10;
+uint8_t Brightness = 50;
+bool brightnessControlMode = false;
 
 unsigned long batTime = 0;
 int deb = 0;
+
+// Double-tap detection for brightness mode toggle (on track area)
+unsigned long lastTrackPress = 0;
+unsigned long brightnessActivatedTime = 0;
+#define DOUBLE_TAP_THRESHOLD 500
+#define BRIGHTNESS_MODE_TIMEOUT 5000
 
 // USB file manager globals
 #define USB_CMD_BUFFER_SIZE 512
@@ -71,6 +81,7 @@ void Play_Music_test() {
 
   if (ret) {
     printf("Music Read OK: %s\r\n", audioFiles[chosenFile].c_str());
+    preferencesManager.setLastTrack(audioFiles[chosenFile]);
     GifPlayer_OnTrackChanged();
   } else {
     printf("Music Read Failed: %s\r\n", audioFiles[chosenFile].c_str());
@@ -217,12 +228,30 @@ void setup()
   pinMode(0, INPUT_PULLUP);
   resetClock();
 
+  // Load preferences
+  preferencesManager.begin();
+  Volume = preferencesManager.getVolume(10);
+  Brightness = preferencesManager.getBrightness(50);
+
   I2C_Init();
   TCA9554PWR_Init(0x00);
   SD_Init();
   listFiles(SD_MMC, "/", MAX_FILES);
   GifPlayer_ScanFiles();
   Audio_Init();
+
+  // Try to restore last played track, fallback to first track
+  String lastTrack = preferencesManager.getLastTrack("");
+  if (lastTrack.length() > 0) {
+    for (int i = 0; i < fileCount; i++) {
+      if (audioFiles[i] == lastTrack) {
+        chosenFile = i;
+        break;
+      }
+    }
+  } else {
+    chosenFile = 0;
+  }
   Play_Music_test();
 
   xTaskCreatePinnedToCore(
@@ -248,13 +277,48 @@ void changeSong(lv_event_t * e)
   }
 }
 
+void toggleBrightnessMode(lv_event_t * e)
+{
+  if (xSemaphoreTake(audio_mutex, portMAX_DELAY)) {
+    unsigned long now = millis();
+
+    // Detect double-tap (clicks within DOUBLE_TAP_THRESHOLD ms)
+    if (now - lastTrackPress < DOUBLE_TAP_THRESHOLD) {
+      brightnessControlMode = !brightnessControlMode;
+      if (brightnessControlMode) {
+        // Enter brightness mode
+        brightnessActivatedTime = now;
+        lv_slider_set_range(ui_Slider1, 0, 100);
+        lv_slider_set_value(ui_Slider1, Brightness, LV_ANIM_OFF);
+      } else {
+        // Exit brightness mode, return to volume
+        lv_slider_set_range(ui_Slider1, 0, 21);
+        lv_slider_set_value(ui_Slider1, Volume, LV_ANIM_OFF);
+        lv_label_set_text(ui_volumeLBL, String(Volume).c_str());
+      }
+    }
+    lastTrackPress = now;
+    xSemaphoreGive(audio_mutex);
+  }
+}
+
 void changeVolume(lv_event_t * e)
 {
   if (xSemaphoreTake(audio_mutex, portMAX_DELAY)) {
-    changeIsMade = true;
-    volumePressed = true;
-    Volume = lv_slider_get_value(ui_Slider1);
-    lv_label_set_text(ui_volumeLBL, String(Volume).c_str());
+    int sliderValue = lv_slider_get_value(ui_Slider1);
+
+    if (brightnessControlMode) {
+      // In brightness mode, adjust brightness
+      changeIsMade = true;
+      Brightness = sliderValue;
+      lv_label_set_text(ui_volumeLBL, String(Brightness).c_str());
+    } else {
+      // In volume mode, adjust volume
+      changeIsMade = true;
+      volumePressed = true;
+      Volume = sliderValue;
+      lv_label_set_text(ui_volumeLBL, String(Volume).c_str());
+    }
     xSemaphoreGive(audio_mutex);
   }
 }
@@ -324,12 +388,18 @@ void Driver_Loop(void *parameter)
   delay(20);
   LCD_Init();
   Backlight_Init();
-  Set_Backlight(30);
+  Set_Backlight(Brightness);
   BAT_Init();
   Lvgl_Init();
   ui_init();
   delay(1000);
   fill_song_roller(ui_Roller1);
+  // Initialize volume slider
+  lv_slider_set_range(ui_Slider1, 0, 21);
+  lv_slider_set_value(ui_Slider1, Volume, LV_ANIM_OFF);
+  lv_label_set_text(ui_volumeLBL, String(Volume).c_str());
+  // Register brightness mode toggle on MP3 label (double-tap to enter brightness mode)
+  lv_obj_add_event_cb(ui_Label8, toggleBrightnessMode, LV_EVENT_PRESSED, NULL);
   // Decorative panels stay clickable by default and sit under controls —
   // disable hit-testing so they cannot steal play/pause/next taps.
   lv_obj_clear_flag(ui_Panel1, LV_OBJ_FLAG_CLICKABLE);
@@ -352,6 +422,8 @@ void Driver_Loop(void *parameter)
   lv_obj_move_foreground(ui_Button3);
   lv_obj_move_foreground(ui_Button4);
   GifPlayer_InitUI();
+  // Play startup GIF (loops indefinitely until clicked)
+  GifPlayer_PlayStartup("MARTEN.gif");
   setPlayButtonPlaying(true);
   int lastChosen = -1;
   bool lastPlaying = true;
@@ -360,6 +432,16 @@ void Driver_Loop(void *parameter)
     Lvgl_Loop();
     CoverArt_poll();
     GifPlayer_Poll();
+
+    // Auto-exit brightness mode after 5 seconds of inactivity
+    if (brightnessControlMode && brightnessActivatedTime > 0 &&
+        millis() - brightnessActivatedTime > BRIGHTNESS_MODE_TIMEOUT) {
+      brightnessControlMode = false;
+      lv_slider_set_range(ui_Slider1, 0, 21);
+      lv_slider_set_value(ui_Slider1, Volume, LV_ANIM_OFF);
+      lv_label_set_text(ui_volumeLBL, String(Volume).c_str());
+      brightnessActivatedTime = 0;
+    }
 
     if (millis() > batTime + 1000)
     {
@@ -430,7 +512,13 @@ void loop()
 
       if (volumePressed == true) {
         audio.setVolume(Volume);
+        preferencesManager.setVolume(Volume);
         volumePressed = 0;
+      }
+
+      if (brightnessControlMode && Brightness != LCD_Backlight) {
+        Set_Backlight(Brightness);
+        preferencesManager.setBrightness(Brightness);
       }
 
       changeIsMade = false;

@@ -31,3 +31,7 @@ void GifPlayer_OnTrackChanged();
 // current animation by whatever frames are due, and loops playback
 // until the overlay is dismissed (touch) or replaced (next track).
 void GifPlayer_Poll();
+
+// Play a specific GIF file at startup (before main UI). Loops indefinitely
+// until clicked. Call this from Driver_Loop after GifPlayer_InitUI().
+void GifPlayer_PlayStartup(const char *filename);

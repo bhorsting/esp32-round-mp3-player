@@ -7,7 +7,7 @@
 
 // Root folder scanned once at boot - not recursive, matches "root GIF
 // folder" as specified.
-static const char *GIF_DIR = "/gif";
+static const char *GIF_DIR = "/GIF";
 static const int MAX_GIFS = 200;
 static const int GIF_NAME_LEN = 64;
 
@@ -204,23 +204,11 @@ void GifPlayer_OnTrackChanged() {
   s_startRequested = true;
 }
 
-static void startNextGif() {
-  int index = random(s_gifCount);
-  // Resample once if we happen to land on the one that's already playing -
-  // with a small list, a same-again pick is common enough to feel broken
-  // rather than "random," so it's worth one extra roll to avoid it.
-  if (s_gifCount > 1 && index == s_lastGifPlayed) {
-    index = random(s_gifCount);
-  }
-  s_lastGifPlayed = index;
-
+static void startGifByPath(const char *path) {
   if (s_gifOpen) {
     s_gif.close();
     s_gifOpen = false;
   }
-
-  char path[16 + GIF_NAME_LEN];
-  snprintf(path, sizeof(path), "%s/%s", GIF_DIR, gifName(index));
 
   if (!s_gif.open(path, GIFOpenFile, GIFCloseFile, GIFReadFile, GIFSeekFile, GIFDraw)) {
     printf("GifPlayer: failed to open %s\r\n", path);
@@ -245,10 +233,27 @@ static void startNextGif() {
   printf("GifPlayer: playing %s (%dx%d)\r\n", path, gw, gh);
 }
 
+static void startNextGif() {
+  int index = random(s_gifCount);
+  // Resample once if we happen to land on the one that's already playing -
+  // with a small list, a same-again pick is common enough to feel broken
+  // rather than "random," so it's worth one extra roll to avoid it.
+  if (s_gifCount > 1 && index == s_lastGifPlayed) {
+    index = random(s_gifCount);
+  }
+  s_lastGifPlayed = index;
+
+  char path[16 + GIF_NAME_LEN];
+  snprintf(path, sizeof(path), "%s/%s", GIF_DIR, gifName(index));
+  startGifByPath(path);
+}
+
 void GifPlayer_Poll() {
   if (!s_canvasBuf || !s_overlay) return;
 
-  if (s_startRequested) {
+  // Only process track-change GIF requests if we're not already playing a GIF
+  // (allows startup GIF to play uninterrupted)
+  if (s_startRequested && !s_gifActive) {
     s_startRequested = false;
     startNextGif();
   }
@@ -269,4 +274,12 @@ void GifPlayer_Poll() {
   }
 
   s_nextFrameDueMs = millis() + (delayMs > 0 ? delayMs : 10);
+}
+
+void GifPlayer_PlayStartup(const char *filename) {
+  if (!s_canvasBuf || !s_overlay) return;
+
+  char path[16 + GIF_NAME_LEN];
+  snprintf(path, sizeof(path), "%s/%s", GIF_DIR, filename);
+  startGifByPath(path);
 }
