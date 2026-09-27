@@ -3,6 +3,7 @@
 #include "ui.h"
 #include "LVGL_Driver.h"
 #include "BAT_Driver.h"
+#include "PWR_Key.h"
 #include "CoverArt.h"
 #include "GifPlayer.h"
 #include <ESP32Time.h>
@@ -216,6 +217,9 @@ static void fill_song_roller(lv_obj_t *roller) {
 
 void setup()
 {
+  // Latch battery power BEFORE anything slow — user is still holding PWR.
+  PWR_Init();
+
   // The native USB CDC RX ring buffer defaults to a small size (well
   // under one YMODEM frame, ~1029 bytes). Diagnostic logging traced a
   // real firmware-level data loss to this: bytes beyond the default
@@ -468,11 +472,18 @@ void Driver_Loop(void *parameter)
   setPlayButtonPlaying(true);
   int lastChosen = -1;
   bool lastPlaying = true;
+  unsigned long lastPwrPoll = 0;
   while (1)
   {
     Lvgl_Loop();
     CoverArt_poll();
     GifPlayer_Poll();
+
+    // Match Waveshare demo: ~100 ms PWR long-press ticks
+    if (millis() - lastPwrPoll >= 100) {
+      lastPwrPoll = millis();
+      PWR_Loop();
+    }
 
     // Auto-exit brightness mode after 5 seconds of inactivity
     if (brightnessControlMode && brightnessActivatedTime > 0 &&
@@ -488,7 +499,9 @@ void Driver_Loop(void *parameter)
     if (millis() > batTime + 1000)
     {
       batTime = millis();
-      int pct = batteryPercent(BAT_Get_Volts());
+      float volts = BAT_Get_Volts();
+      PWR_CheckBattery(volts);
+      int pct = batteryPercent(volts);
       if (ui_Label11) lv_label_set_text(ui_Label11, (String(pct) + "%").c_str());
       if (isPlaying)
         lv_label_set_text(ui_timeLBL2, rtc.getTime().substring(3, 8).c_str());
