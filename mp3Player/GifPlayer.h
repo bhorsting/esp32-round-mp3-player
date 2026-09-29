@@ -35,3 +35,7 @@ void GifPlayer_Poll();
 // Play a specific GIF file at startup (before main UI). Loops indefinitely
 // until clicked. Call this from Driver_Loop after GifPlayer_InitUI().
 void GifPlayer_PlayStartup(const char *filename);
+
+// True for ~400 ms after a GIF dismiss tap — LVGL should ignore touch so
+// the same press cannot land on widgets under the overlay.
+bool GifPlayer_ShouldIgnoreTouch(void);

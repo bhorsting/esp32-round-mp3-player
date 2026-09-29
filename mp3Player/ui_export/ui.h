@@ -26,8 +26,8 @@ extern "C" {
 #include "ui_events.h"
 
 ///////////////////// SCREENS ////////////////////
-#include "ui_Screen1.h"
 #include "ui_Screen2.h"
+#include "ui_Screen1.h"
 
 ///////////////////// VARIABLES ////////////////////
 
@@ -35,11 +35,11 @@ extern "C" {
 extern lv_obj_t *ui____initial_actions0;
 
 // IMAGES AND IMAGE SETS
-LV_IMG_DECLARE( ui_img_1417965892);   // assets/Steve-Zondicons-Play.48.png
-LV_IMG_DECLARE( ui_img_1040054024);   // assets/Pictogrammers-Material-Pause.48.png
-LV_IMG_DECLARE( ui_img_1053183376);   // assets/Steve-Zondicons-Forward-Step.48.png
-LV_IMG_DECLARE( ui_img_prev_step);   // assets/Steve-Zondicons-Backward-Step.48.png
-LV_IMG_DECLARE( ui_img_art6_png);   // assets/art6.png
+LV_IMG_DECLARE( ui_img_art24_png);   // assets/art24.png
+LV_IMG_DECLARE( ui_img_1691442077);   // assets/Steve-Zondicons-Forward-Step.48.png
+LV_IMG_DECLARE( ui_img_389595065);   // assets/Steve-Zondicons-Backward-Step.48.png
+LV_IMG_DECLARE( ui_img_711420211);   // assets/Steve-Zondicons-Play.48.png
+LV_IMG_DECLARE( ui_img_239613141);   // assets/Pictogrammers-Material-Pause.48.png
 
 // FONTS
 LV_FONT_DECLARE( ui_font_COUNTER);

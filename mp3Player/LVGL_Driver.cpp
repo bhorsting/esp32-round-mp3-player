@@ -5,6 +5,7 @@
     The provided LVGL library file must be installed first
 ******************************************************************************/
 #include "LVGL_Driver.h"
+#include "GifPlayer.h"
 
 static lv_disp_draw_buf_t draw_buf;
 static lv_color_t buf1[ LVGL_BUF_LEN ];
@@ -25,7 +26,10 @@ void Lvgl_Display_LCD( lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_
 void Lvgl_Touchpad_Read( lv_indev_drv_t * indev_drv, lv_indev_data_t * data )
 {
   Touch_Read_Data();
-  if (touch_data.points != 0x00) {
+  if (GifPlayer_ShouldIgnoreTouch()) {
+    // Swallow presses after GIF dismiss so they don't hit the UI below.
+    data->state = LV_INDEV_STATE_REL;
+  } else if (touch_data.points != 0x00) {
     data->point.x = touch_data.x;
     data->point.y = touch_data.y;
     data->state = LV_INDEV_STATE_PR;

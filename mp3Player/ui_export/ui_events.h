@@ -10,12 +10,12 @@
 extern "C" {
 #endif
 
+void changeVolume(lv_event_t * e);
+void nextSelected(lv_event_t * e);
+void prevSelected(lv_event_t * e);
 void changeSong(lv_event_t * e);
 void playSelected(lv_event_t * e);
 void stopSelected(lv_event_t * e);
-void nextSelected(lv_event_t * e);
-void prevSelected(lv_event_t * e);
-void changeVolume(lv_event_t * e);
 
 #ifdef __cplusplus
 } /*extern "C"*/

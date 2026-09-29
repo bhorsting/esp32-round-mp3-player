@@ -335,7 +335,7 @@ static void setPlayButtonPlaying(bool playing) {
   // Playing → show Pause icon; paused → show Play icon.
   lv_obj_set_style_bg_img_src(
     ui_Button8,
-    playing ? &ui_img_1040054024 : &ui_img_1417965892,
+    playing ? &ui_img_239613141 : &ui_img_711420211,
     LV_PART_MAIN | LV_STATE_DEFAULT
   );
 }

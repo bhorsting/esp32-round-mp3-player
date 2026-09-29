@@ -18,3 +18,7 @@ def changeVolume(event_struct):
 def nextSelected(event_struct):
     return
 
+
+def prevSelected(event_struct):
+    return
+

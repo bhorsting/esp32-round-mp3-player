@@ -15,6 +15,7 @@ extern void ui_Screen2_screen_init(void);
 extern void ui_Screen2_screen_destroy(void);
 extern lv_obj_t *ui_Screen2;
 extern lv_obj_t *ui_Image1;
+extern void ui_event_Arc1( lv_event_t * e);
 extern lv_obj_t *ui_Arc1;
 extern lv_obj_t *ui_timeLBL2;
 extern lv_obj_t *ui_Label9;
@@ -27,7 +28,6 @@ extern void ui_event_Roller3( lv_event_t * e);
 extern lv_obj_t *ui_Roller3;
 extern void ui_event_Button8( lv_event_t * e);
 extern lv_obj_t *ui_Button8;
-extern void ui_event_Arc1( lv_event_t * e);
 extern lv_obj_t *ui_Label10;
 extern lv_obj_t *ui_Label11;
 // CUSTOM VARIABLES

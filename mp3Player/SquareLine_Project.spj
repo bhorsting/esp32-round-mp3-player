@@ -136,7 +136,7 @@
               {
                 "nid": 1020,
                 "strtype": "IMAGE/Asset",
-                "strval": "assets/art6.png",
+                "strval": "assets/art24.png",
                 "InheritedType": 5
               },
               {
@@ -499,8 +499,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  271,
-                  130
+                  268,
+                  131
                 ],
                 "InheritedType": 7
               },
@@ -608,9 +608,9 @@
                         "nid": -1150294532,
                         "strtype": "_style/Text_Color",
                         "intarray": [
-                          231,
-                          227,
-                          19,
+                          238,
+                          234,
+                          16,
                           255
                         ],
                         "InheritedType": 7
@@ -670,8 +670,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  -37,
-                  31
+                  -15,
+                  27
                 ],
                 "InheritedType": 7
               },
@@ -779,9 +779,9 @@
                         "nid": -232027480,
                         "strtype": "_style/Text_Color",
                         "intarray": [
-                          12,
-                          215,
-                          225,
+                          1,
+                          205,
+                          193,
                           255
                         ],
                         "InheritedType": 7
@@ -841,8 +841,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  15,
-                  31
+                  28,
+                  27
                 ],
                 "InheritedType": 7
               },
@@ -1494,7 +1494,7 @@
                 "flags": 17,
                 "strtype": "OBJECT/Size",
                 "intarray": [
-                  284,
+                  290,
                   91
                 ],
                 "InheritedType": 7
@@ -1790,7 +1790,7 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  3,
+                  1,
                   -70
                 ],
                 "InheritedType": 7
@@ -1900,17 +1900,6 @@
                         "strtype": "_style/Bg_Image",
                         "strval": "assets/Steve-Zondicons-Play.48.png",
                         "InheritedType": 5
-                      },
-                      {
-                        "nid": -1453978495,
-                        "strtype": "_style/Bg_Image_Recolor",
-                        "intarray": [
-                          8,
-                          40,
-                          57,
-                          255
-                        ],
-                        "InheritedType": 7
                       }
                     ],
                     "InheritedType": 1
@@ -2027,7 +2016,7 @@
                 "strtype": "OBJECT/Position",
                 "intarray": [
                   -143,
-                  -39
+                  -37
                 ],
                 "InheritedType": 7
               },
@@ -2135,9 +2124,9 @@
                         "nid": 576661810,
                         "strtype": "_style/Text_Color",
                         "intarray": [
-                          8,
-                          24,
-                          32,
+                          41,
+                          141,
+                          155,
                           255
                         ],
                         "InheritedType": 7
@@ -2198,7 +2187,7 @@
                 "strtype": "OBJECT/Position",
                 "intarray": [
                   56,
-                  134
+                  136
                 ],
                 "InheritedType": 7
               },
@@ -7321,7 +7310,7 @@
     "separate_screen_save": false,
     "hierarchy_state_save": false,
     "reverse_event_order": false,
-    "backup_cnt": 180,
+    "backup_cnt": 197,
     "autosave_cnt": 0,
     "group_color_cnt": 0,
     "imagebytearrayprefix": "",

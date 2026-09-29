@@ -20,8 +20,19 @@ static const int SCREEN_H = 360;
 static char *s_gifNames = nullptr;
 static int s_gifCount = 0;
 static int s_lastGifPlayed = -1;  // avoid repeating the same GIF twice in a row
+static unsigned long s_ignoreTouchUntilMs = 0;
+static const unsigned long GIF_DISMISS_IGNORE_MS = 400;
 
 static inline char *gifName(int i) { return s_gifNames + (size_t)i * GIF_NAME_LEN; }
+
+bool GifPlayer_ShouldIgnoreTouch(void) {
+  if (s_ignoreTouchUntilMs == 0) return false;
+  if ((long)(millis() - s_ignoreTouchUntilMs) >= 0) {
+    s_ignoreTouchUntilMs = 0;
+    return false;
+  }
+  return true;
+}
 
 static void *gifAlloc(size_t n) {
   void *p = heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -187,6 +198,8 @@ void GifPlayer_InitUI() {
 
   // Any tap anywhere on the overlay dismisses it immediately - audio just
   // keeps playing throughout, this is purely a visual layer.
+  // Ignore further LVGL touch for a short window so the same press cannot
+  // also activate widgets that were under the overlay.
   lv_obj_add_event_cb(s_overlay, [](lv_event_t *e) {
     lv_obj_add_flag(s_overlay, LV_OBJ_FLAG_HIDDEN);
     s_gifActive = false;
@@ -194,6 +207,7 @@ void GifPlayer_InitUI() {
       s_gif.close();
       s_gifOpen = false;
     }
+    s_ignoreTouchUntilMs = millis() + GIF_DISMISS_IGNORE_MS;
   }, LV_EVENT_PRESSED, NULL);
 
   s_gif.begin(LITTLE_ENDIAN_PIXELS);
