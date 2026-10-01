@@ -38,12 +38,49 @@ class WebUSBManager {
       this.rx_queue = [];
       this._pendingReadPromise = null;
 
+      // Surface unexpected unplugs so the UI can leave upload mode cleanly.
+      this.port.addEventListener('disconnect', () => {
+        this.connected = false;
+        this.reader = null;
+        this.writer = null;
+        this.port = null;
+        this.rx_queue = [];
+        this._pendingReadPromise = null;
+        if (typeof this.onUnexpectedDisconnect === 'function') {
+          this.onUnexpectedDisconnect();
+        }
+      });
+
       console.log('[Serial] Connected to device');
+
+      // Boot-time printf() spam (PWR/SD/GIF/…) sits in the CDC TX buffer and
+      // arrives the moment the port opens. Drain it before any binary command
+      // so framed responses aren't parsed against leftover ASCII.
+      await this.drainRx(400);
+
       return true;
     } catch (error) {
       console.error('[Serial] Connection failed:', error);
       this.connected = false;
       throw error;
+    }
+  }
+
+  // Pull and discard whatever is already queued (and anything that arrives
+  // within `ms`) so the next receiveResponse() starts on a clean stream.
+  async drainRx(ms = 300) {
+    if (!this.connected || !this.reader) return;
+    const deadline = Date.now() + ms;
+    let discarded = 0;
+    while (Date.now() < deadline) {
+      await this._waitForMoreData(deadline);
+      discarded += this.rx_queue.length;
+      this.rx_queue = [];
+    }
+    discarded += this.rx_queue.length;
+    this.rx_queue = [];
+    if (discarded > 0) {
+      console.log(`[Serial] Drained ${discarded} boot/noise byte(s)`);
     }
   }
 
@@ -162,10 +199,25 @@ class WebUSBManager {
     }
 
     const deadline = Date.now() + timeout_ms;
+    // Valid device responses (see USBProtocol.h). Anything else is leftover
+    // printf ASCII or framing junk — skip until we re-sync.
+    const isRespType = (b) =>
+      (b >= 0x81 && b <= 0x87) || b === 0x90;
+    const MAX_PAYLOAD = 32768;
 
     while (true) {
+      // Resync: drop leading bytes that cannot be a response type.
+      while (this.rx_queue.length > 0 && !isRespType(this.rx_queue[0])) {
+        this.rx_queue.shift();
+      }
+
       if (this.rx_queue.length >= 3) {
         const payload_len = (this.rx_queue[1] << 8) | this.rx_queue[2];
+        if (payload_len > MAX_PAYLOAD) {
+          // Plausible type byte was actually noise — skip it and resync.
+          this.rx_queue.shift();
+          continue;
+        }
         const total_expected = 3 + payload_len;
 
         if (this.rx_queue.length >= total_expected) {

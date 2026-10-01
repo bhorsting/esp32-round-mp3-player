@@ -6,6 +6,7 @@ class FileManagerUI {
     this.current_filter = 0;
     this.ymodem = new YMODEMSender(webusb_manager);
 
+    this.webusb.onUnexpectedDisconnect = () => this.handleUnexpectedDisconnect();
     this.setupEventListeners();
   }
 
@@ -58,6 +59,7 @@ class FileManagerUI {
     const status = document.getElementById('connectionStatus');
 
     if (this.webusb.isConnected()) {
+      await this.leaveUploadMode();
       await this.webusb.disconnect();
       btn.textContent = 'Connect';
       status.classList.remove('connected');
@@ -75,6 +77,10 @@ class FileManagerUI {
         this.enableControls();
         this.showNotification('Connected to device', 'success');
 
+        // Pause GIF/audio on device before any SD work — otherwise uploads
+        // fight the player for the card and time out.
+        await this.enterUploadMode();
+
         // Load initial file list and stats
         await this.listFiles();
         await this.updateStats();
@@ -83,6 +89,37 @@ class FileManagerUI {
         console.error('Connection error:', error);
       }
     }
+  }
+
+  async enterUploadMode() {
+    try {
+      await this.sendAndExpect(CMD_UPLOAD_MODE_ENTER, new Uint8Array(0), RESP_UPLOAD_MODE_ACK);
+    } catch (error) {
+      console.warn('Upload mode enter failed:', error);
+    }
+  }
+
+  async leaveUploadMode() {
+    if (!this.webusb.isConnected()) return;
+    try {
+      await this.sendAndExpect(CMD_UPLOAD_MODE_EXIT, new Uint8Array(0), RESP_UPLOAD_MODE_ACK);
+    } catch (error) {
+      console.warn('Upload mode exit failed:', error);
+    }
+  }
+
+  handleUnexpectedDisconnect() {
+    const btn = document.getElementById('connectBtn');
+    const status = document.getElementById('connectionStatus');
+    if (btn) btn.textContent = 'Connect';
+    if (status) {
+      status.classList.remove('connected');
+      status.classList.add('disconnected');
+      status.querySelector('.status-text').textContent = 'Disconnected';
+    }
+    this.disableControls();
+    this.showNotification('Device disconnected', 'info');
+    // Device will leave upload mode via its idle timeout if EXIT never arrived.
   }
 
   // Send a command and wait for a specific response type. If the device

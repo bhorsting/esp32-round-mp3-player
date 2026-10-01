@@ -232,6 +232,24 @@ static void test_draw_bitmap(esp_lcd_panel_handle_t panel_handle)
 }
 
 esp_lcd_panel_handle_t panel_handle = NULL;
+static bool s_panelAsleep = false;
+
+void LCD_Sleep(void) {
+  if (!panel_handle || s_panelAsleep) return;
+  esp_lcd_panel_disp_on_off(panel_handle, false);
+  s_panelAsleep = true;
+}
+
+void LCD_Wake(void) {
+  if (!panel_handle || !s_panelAsleep) return;
+  esp_lcd_panel_disp_on_off(panel_handle, true);
+  s_panelAsleep = false;
+}
+
+bool LCD_IsAsleep(void) {
+  return s_panelAsleep;
+}
+
 int QSPI_Init(void){
   static const spi_bus_config_t host_config = {            
     .data0_io_num = ESP_PANEL_LCD_SPI_IO_DATA0,                    
@@ -352,13 +370,14 @@ void ST77916_Init() {
 
 void LCD_addWindow(uint16_t Xstart, uint16_t Ystart, uint16_t Xend, uint16_t Yend,uint16_t* color)
 { 
+  // Drop flushes while the panel is asleep — SPI traffic would waste power
+  // and the pixels are invisible with DISPOFF + backlight off anyway.
+  if (s_panelAsleep || !panel_handle) return;
+
   uint32_t size = (Xend - Xstart +1 ) * (Yend - Ystart + 1);
   for (size_t i = 0; i < size; i++) {
     color[i] = (((color[i] >> 8) & 0xFF) | ((color[i] << 8) & 0xFF00));
   }
-  // for (size_t i = 0; i < size; i++) {
-  //   color[i] = 0xFFFF;
-  // }
   Xend = Xend + 1;      // esp_lcd_panel_draw_bitmap: x_end End index on x-axis (x_end not included)
   Yend = Yend + 1;      // esp_lcd_panel_draw_bitmap: y_end End index on y-axis (y_end not included)
   if (Xend > EXAMPLE_LCD_WIDTH)
@@ -366,7 +385,6 @@ void LCD_addWindow(uint16_t Xstart, uint16_t Ystart, uint16_t Xend, uint16_t Yen
   if (Yend > EXAMPLE_LCD_HEIGHT)
     Yend = EXAMPLE_LCD_HEIGHT;
     
-  // printf("Xstart = %d    Ystart = %d    Xend = %d    Yend = %d \r\n",Xstart, Ystart, Xend, Yend);
   esp_lcd_panel_draw_bitmap(panel_handle, Xstart, Ystart, Xend, Yend, color);                     // x_end End index on x-axis (x_end not included)
 }
 
@@ -382,13 +400,13 @@ void Backlight_Init()
 
 void Set_Backlight(uint8_t Light)
 {
-  if(Light > Backlight_MAX || Light < 0)
-    printf("Set Backlight parameters in the range of 0 to 100 \r\n");
-  else{
-    LCD_Backlight = Light;
-    uint32_t Backlight = Light*10;
-    if(Backlight == 1000)
-      Backlight = 1024;
-    ledcWrite(LCD_Backlight_PIN, Backlight);
+  if(Light > Backlight_MAX) {
+    // No printf — USB CDC shares the binary file-manager wire.
+    Light = Backlight_MAX;
   }
+  LCD_Backlight = Light;
+  uint32_t Backlight = Light*10;
+  if(Backlight == 1000)
+    Backlight = 1024;
+  ledcWrite(LCD_Backlight_PIN, Backlight);
 }

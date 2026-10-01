@@ -41,6 +41,8 @@ private:
   static void handleGetStats(const uint8_t* payload, uint16_t payload_len);
   static void handleCreateDir(const uint8_t* payload, uint16_t payload_len);
   static void handleGetFileInfo(const uint8_t* payload, uint16_t payload_len);
+  static void handleUploadModeEnter(const uint8_t* payload, uint16_t payload_len);
+  static void handleUploadModeExit(const uint8_t* payload, uint16_t payload_len);
 
   // Safely copy a trailing variable-length path field out of a payload.
   // `path_offset` is where the path starts within the payload (i.e. after

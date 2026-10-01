@@ -3,7 +3,12 @@
 struct CST816_Touch touch_data = {0};
 uint8_t Touch_interrupts = 0;
 static bool touch_ready = false;
+static volatile unsigned long s_lastActivityMs = 0;
 static TwoWire TouchWire = TwoWire(1); // dedicated bus: SDA=1, SCL=3
+
+unsigned long Touch_LastActivityMs(void) {
+  return s_lastActivityMs;
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Touch I2C (Wire1 on GPIO 1/3 — NOT the shared TCA9554 bus on 10/11)
@@ -77,6 +82,7 @@ uint8_t Touch_Init(void) {
   touch_ready = true;
   printf("Touch ready, ChipID=0x%02x\r\n", chip);
   CST816_AutoSleep(true);
+  s_lastActivityMs = millis();
 
   pinMode(CST816_INT_PIN, INPUT_PULLUP);
   attachInterrupt(CST816_INT_PIN, Touch_CST816_ISR, FALLING);
@@ -102,10 +108,14 @@ uint16_t CST816_Read_cfg(void) {
 }
 
 void CST816_AutoSleep(bool Sleep_State) {
-  CST816_Touch_Reset();
-  uint8_t Sleep_State_Set = 10;
-  (void)Sleep_State;
-  I2C_Write_Touch(CST816_ADDR, CST816_REG_DisAutoSleep, &Sleep_State_Set, 1);
+  // Reg 0xFE DisAutoSleep: 0 = allow chip autosleep, nonzero = keep awake.
+  // Reg 0xF9 AutoSleepTime: idle seconds before the controller sleeps.
+  uint8_t dis = Sleep_State ? 0 : 1;
+  I2C_Write_Touch(CST816_ADDR, CST816_REG_DisAutoSleep, &dis, 1);
+  if (Sleep_State) {
+    uint8_t secs = 2;
+    I2C_Write_Touch(CST816_ADDR, CST816_REG_AutoSleepTime, &secs, 1);
+  }
 }
 
 uint8_t Touch_Read_Data(void) {
@@ -127,6 +137,7 @@ uint8_t Touch_Read_Data(void) {
       touch_data.points = CST816_LCD_TOUCH_MAX_POINTS;
     touch_data.x = ((buf[2] & 0x0F) << 8) + buf[3];
     touch_data.y = ((buf[4] & 0x0F) << 8) + buf[5];
+    s_lastActivityMs = millis();
     interrupts();
   }
   return true;
@@ -134,9 +145,7 @@ uint8_t Touch_Read_Data(void) {
 
 void example_touchpad_read(void) {
   Touch_Read_Data();
-  if (touch_data.gesture != NONE || touch_data.points != 0x00) {
-    printf("Touch : X=%u Y=%u points=%d\r\n", touch_data.x, touch_data.y, touch_data.points);
-  }
+  // No printf — USB CDC carries the binary file-manager protocol.
 }
 
 void Touch_Loop(void) {

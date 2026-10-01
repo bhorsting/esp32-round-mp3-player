@@ -1,4 +1,5 @@
 #include "USBCommandDispatcher.h"
+#include "UploadMode.h"
 
 // Static member initialization
 YMODEMHandler USBCommandDispatcher::ymodem;
@@ -146,6 +147,22 @@ void USBCommandDispatcher::handleGetFileInfo(const uint8_t* payload, uint16_t pa
   }
 }
 
+void USBCommandDispatcher::handleUploadModeEnter(const uint8_t* payload, uint16_t payload_len) {
+  (void)payload;
+  (void)payload_len;
+  UploadMode_Enter();
+  uint8_t status = 1;  // active
+  sendResponse(RESP_UPLOAD_MODE_ACK, &status, 1);
+}
+
+void USBCommandDispatcher::handleUploadModeExit(const uint8_t* payload, uint16_t payload_len) {
+  (void)payload;
+  (void)payload_len;
+  UploadMode_Exit();
+  uint8_t status = 0;  // inactive
+  sendResponse(RESP_UPLOAD_MODE_ACK, &status, 1);
+}
+
 void USBCommandDispatcher::processCommand(const uint8_t* cmd_data, uint16_t cmd_len) {
   if (cmd_len < 3) return;
 
@@ -179,6 +196,13 @@ void USBCommandDispatcher::processCommand(const uint8_t* cmd_data, uint16_t cmd_
       handleGetFileInfo(payload, payload_len);
       break;
 
+    case CMD_UPLOAD_MODE_ENTER:
+      handleUploadModeEnter(payload, payload_len);
+      break;
+
+    case CMD_UPLOAD_MODE_EXIT:
+      handleUploadModeExit(payload, payload_len);
+      break;
 
     default:
       sendError(254, "Unknown command");

@@ -6,11 +6,13 @@
 #include "PWR_Key.h"
 #include "CoverArt.h"
 #include "GifPlayer.h"
+#include "UploadMode.h"
 #include <ESP32Time.h>
 #include "USBProtocol.h"
 #include "USBCommandDispatcher.h"
 #include "PreferencesManager.h"
 #include "Display_ST77916.h"
+#include "PowerSave.h"
 
 ESP32Time rtc(0);
 
@@ -39,7 +41,7 @@ int playingIndex = -1;
 String playingSong = "";
 Audio audio;
 uint8_t Volume = 10;
-uint8_t Brightness = 50;
+uint8_t Brightness = 30;
 bool brightnessControlMode = false;
 
 unsigned long batTime = 0;
@@ -65,6 +67,7 @@ void resetClock()
 }
 
 void Play_Music_test() {
+  if (UploadMode_IsActive()) return;
   if (fileCount <= 0) {
     printf("Music Read Failed: no mp3 files found on SD\r\n");
     return;
@@ -143,7 +146,7 @@ void listFiles(fs::FS &fs, const char *dirname, uint8_t levels) {
     return;
   }
   if (!root.isDirectory()) {
-    Serial.println("Not a directory");
+    // No Serial.println — USB CDC is the binary protocol wire.
     root.close();
     return;
   }
@@ -228,6 +231,12 @@ void setup()
   // set before begin().
   Serial.setRxBufferSize(4096);
   Serial.begin(115200);
+
+  // Kill WiFi/BT radios + drop CPU clock before anything else heavy —
+  // neither radio is used by this firmware.
+  PowerSave_DisableRadios();
+  PowerSave_SetCpuMhz();
+
   audio_mutex = xSemaphoreCreateMutex();
   pinMode(0, INPUT_PULLUP);
   resetClock();
@@ -235,7 +244,7 @@ void setup()
   // Load preferences
   preferencesManager.begin();
   Volume = preferencesManager.getVolume(10);
-  Brightness = preferencesManager.getBrightness(50);
+  Brightness = preferencesManager.getBrightness(30);
 
   I2C_Init();
   TCA9554PWR_Init(0x00);
@@ -392,6 +401,44 @@ static int batteryPercent(float volts) {
   return (int)((volts - vmin) * 100.0f / (vmax - vmin) + 0.5f);
 }
 
+// The ADC curve on this board tops out around ~89% when the pack is full
+// (and goes higher only while USB is charging). Stretch 0..FULL_RAW onto
+// 0..100 so a full battery reads 100%, not 89%.
+static int batteryPercentDisplay(int raw) {
+  const int FULL_RAW = 89;
+  if (raw <= 0) return 0;
+  if (raw >= FULL_RAW) return 100;
+  return (raw * 100 + FULL_RAW / 2) / FULL_RAW;
+}
+
+// CHG while charging (raw ≥ 95). Hysteresis so noise near the threshold
+// does not flicker. Otherwise show the remapped percentage.
+static void updateBatteryLabel(float volts) {
+  if (!ui_Label11) return;
+  static bool showingChg = false;
+  const int CHG_ENTER = 95;
+  const int CHG_EXIT  = 91;
+
+  int raw = batteryPercent(volts);
+  if (showingChg) {
+    if (raw < CHG_EXIT) showingChg = false;
+  } else {
+    if (raw >= CHG_ENTER) showingChg = true;
+  }
+
+  if (showingChg) {
+    lv_label_set_text(ui_Label11, "CHG");
+  } else {
+    int pct = batteryPercentDisplay(raw);
+    lv_label_set_text(ui_Label11, (String(pct) + "%").c_str());
+  }
+}
+
+#define IDLE_DIM_MS         (30UL * 1000UL)            // half backlight after 30 s
+#define IDLE_SLEEP_MS       (2UL * 60UL * 1000UL)      // backlight 0 + panel sleep after 2 min
+#define IDLE_OFF_MS         (60UL * 60UL * 1000UL)     // power off after 1 h idle (playing)
+#define IDLE_OFF_PAUSED_MS  (10UL * 60UL * 1000UL)     // power off after 10 min idle (paused)
+
 static lv_obj_t *createCircularCoverViewport() {
   // Arc1 is 150×150 at (-1, -69). Cover sits inside the ring, under Play.
   // Must be an lv_img: CoverArt_begin calls lv_img_set_src on the viewport.
@@ -416,7 +463,7 @@ void Driver_Loop(void *parameter)
   delay(20);
   LCD_Init();
   Backlight_Init();
-  Set_Backlight(Brightness);
+  ScreenPower_Init(Brightness);
   BAT_Init();
   Lvgl_Init();
   ui_init();
@@ -467,6 +514,7 @@ void Driver_Loop(void *parameter)
   if (ui_Label11) lv_obj_move_foreground(ui_Label11);
 
   GifPlayer_InitUI();
+  UploadMode_InitUI();
   // Play startup GIF (loops indefinitely until clicked)
   GifPlayer_PlayStartup("MARTEN.gif");
   setPlayButtonPlaying(true);
@@ -478,6 +526,16 @@ void Driver_Loop(void *parameter)
     Lvgl_Loop();
     CoverArt_poll();
     GifPlayer_Poll();
+    UploadMode_Poll();
+
+    if (UploadMode_NeedsUiRefresh()) {
+      UploadMode_ClearUiRefresh();
+      fill_song_roller(ui_Roller3);
+      if (chosenFile >= 0 && chosenFile < fileCount) {
+        lv_roller_set_selected(ui_Roller3, chosenFile, LV_ANIM_OFF);
+      }
+      setPlayButtonPlaying(true);
+    }
 
     // Match Waveshare demo: ~100 ms PWR long-press ticks
     if (millis() - lastPwrPoll >= 100) {
@@ -496,13 +554,32 @@ void Driver_Loop(void *parameter)
       brightnessActivatedTime = 0;
     }
 
+    // Idle power saving:
+    //   30 s  → half backlight
+    //   2 min → backlight off + panel DISPOFF (wake on touch)
+    //   10 min paused / 1 h playing → full power cut
+    {
+      unsigned long lastTouch = Touch_LastActivityMs();
+      if (lastTouch == 0) lastTouch = millis();  // before Touch_Init
+      unsigned long idleMs = millis() - lastTouch;
+
+      ScreenPowerState want = SCR_AWAKE;
+      if (idleMs >= IDLE_SLEEP_MS) want = SCR_ASLEEP;
+      else if (idleMs >= IDLE_DIM_MS) want = SCR_DIMMED;
+      ScreenPower_SetState(want);
+
+      unsigned long offMs = isPlaying ? IDLE_OFF_MS : IDLE_OFF_PAUSED_MS;
+      if (idleMs >= offMs) {
+        Shutdown();
+      }
+    }
+
     if (millis() > batTime + 1000)
     {
       batTime = millis();
       float volts = BAT_Get_Volts();
       PWR_CheckBattery(volts);
-      int pct = batteryPercent(volts);
-      if (ui_Label11) lv_label_set_text(ui_Label11, (String(pct) + "%").c_str());
+      updateBatteryLabel(volts);
       if (isPlaying)
         lv_label_set_text(ui_timeLBL2, rtc.getTime().substring(3, 8).c_str());
       else
@@ -523,9 +600,65 @@ void Driver_Loop(void *parameter)
 
 void loop()
 {
+  // After the web uploader disconnects: rescan SD library, then restart
+  // playback. Rescan must finish before restart so Play_Music_test sees
+  // the new file list.
+  if (UploadMode_NeedsRescan()) {
+    if (xSemaphoreTake(audio_mutex, pdMS_TO_TICKS(50))) {
+      UploadMode_ClearRescanRequest();
+      GifPlayer_SetSuppressed(false);
+
+      String keepTrack = playingSong;
+      if (playingIndex >= 0 && playingIndex < fileCount) {
+        keepTrack = audioFiles[playingIndex];
+      } else {
+        keepTrack = preferencesManager.getLastTrack("");
+      }
+
+      fileCount = 0;
+      listFiles(SD_MMC, "/", MAX_FILES);
+      GifPlayer_RescanFiles();
+
+      chosenFile = 0;
+      if (keepTrack.length() > 0) {
+        for (int i = 0; i < fileCount; i++) {
+          if (audioFiles[i] == keepTrack ||
+              displayNameFor(audioFiles[i]) == keepTrack) {
+            chosenFile = i;
+            break;
+          }
+        }
+      }
+      xSemaphoreGive(audio_mutex);
+    }
+  }
+
+  if (UploadMode_NeedsRestart() && !UploadMode_IsActive() && !UploadMode_NeedsRescan()) {
+    if (xSemaphoreTake(audio_mutex, pdMS_TO_TICKS(50))) {
+      UploadMode_ClearRestart();
+      if (fileCount > 0) {
+        Play_Music_test();
+        resetClock();
+        isPlaying = true;
+      } else {
+        isPlaying = false;
+      }
+      xSemaphoreGive(audio_mutex);
+    }
+  }
+
   if (xSemaphoreTake(audio_mutex, portMAX_DELAY)) {
     if (changeIsMade == true)
     {
+      if (UploadMode_IsActive()) {
+        // Swallow transport presses while the uploader owns the device.
+        playPressed = 0;
+        stopPressed = 0;
+        nextPressed = 0;
+        prevPressed = 0;
+        volumePressed = 0;
+        changeIsMade = false;
+      } else {
       if (playPressed == 1)
       {
         // Play the roller-selected track. Only resume if it's the same
@@ -571,18 +704,24 @@ void loop()
         volumePressed = 0;
       }
 
-      if (brightnessControlMode && Brightness != LCD_Backlight) {
-        Set_Backlight(Brightness);
+      if (brightnessControlMode) {
         preferencesManager.setBrightness(Brightness);
+        ScreenPower_SetBrightness(Brightness);
+        // Live level follows idle stage (awake/dimmed); asleep stays dark
+        // until the next touch wakes the panel.
+        if (ScreenPower_GetState() != SCR_ASLEEP) {
+          ScreenPower_Apply();
+        }
       }
 
       changeIsMade = false;
+      }  // else !UploadMode_IsActive
     }
 
     xSemaphoreGive(audio_mutex);
   }
 
-  if (digitalRead(0) == 0)
+  if (!UploadMode_IsActive() && digitalRead(0) == 0)
   {
     if (deb == 0)
     {
@@ -595,7 +734,9 @@ void loop()
     }
   } else deb = 0;
 
-  audio.loop();
+  if (!UploadMode_IsActive()) {
+    audio.loop();
+  }
 
   // Process USB commands and YMODEM data. Debug printf()/Serial.printf() must
   // never be called from this path (or anything it calls) - stdout and
@@ -660,7 +801,16 @@ void loop()
     // Process complete command
     if (usb_cmd_complete) {
       if (xSemaphoreTake(audio_mutex, pdMS_TO_TICKS(100))) {
+        bool wasUpload = UploadMode_IsActive();
         USBCommandDispatcher::processCommand(usb_cmd_buffer, usb_cmd_buffer_pos);
+        // Entering upload mode: free the SD card from audio/GIF so YMODEM
+        // and directory listings aren't competing with the decoder.
+        if (UploadMode_IsActive() && !wasUpload) {
+          GifPlayer_SetSuppressed(true);
+          audio.stopSong();
+          isPlaying = false;
+          playingIndex = -1;
+        }
         xSemaphoreGive(audio_mutex);
       }
       // If the mutex timed out, the command is silently dropped - the host
@@ -675,11 +825,24 @@ void loop()
     usb_cmd_buffer_pos = 0;
   }
 
+  // Safety net: if the browser tab died without sending EXIT, leave upload
+  // mode after a stretch of USB silence so the player isn't stuck forever.
+  if (UploadMode_IsActive() &&
+      !USBCommandDispatcher::isYMODEMActive() &&
+      usb_last_byte_time > 0 &&
+      (millis() - usb_last_byte_time) > 120000) {
+    if (xSemaphoreTake(audio_mutex, pdMS_TO_TICKS(50))) {
+      UploadMode_Exit();
+      xSemaphoreGive(audio_mutex);
+    }
+  }
+
   // Tick YMODEM handler for timeouts
   USBCommandDispatcher::tick();
 }
 
 void audio_eof_mp3(const char *info) {
+  if (UploadMode_IsActive()) return;
   if (xSemaphoreTake(audio_mutex, portMAX_DELAY)) {
     resetClock();
     isPlaying = true;

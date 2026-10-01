@@ -53,3 +53,6 @@ String Touch_GestureName(void);
 uint8_t Touch_Read_Data(void);
 void example_touchpad_read(void);
 void IRAM_ATTR Touch_CST816_ISR(void);
+
+// millis() of last contact (updated whenever Touch_Read_Data sees a press).
+unsigned long Touch_LastActivityMs(void);

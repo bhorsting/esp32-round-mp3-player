@@ -4,6 +4,7 @@
 #include <esp_heap_caps.h>
 #include "FS.h"
 #include "SD_MMC.h"
+#include "Display_ST77916.h"
 
 // Root folder scanned once at boot - not recursive, matches "root GIF
 // folder" as specified.
@@ -22,6 +23,10 @@ static int s_gifCount = 0;
 static int s_lastGifPlayed = -1;  // avoid repeating the same GIF twice in a row
 static unsigned long s_ignoreTouchUntilMs = 0;
 static const unsigned long GIF_DISMISS_IGNORE_MS = 400;
+
+static volatile bool s_startRequested = false;  // set on audio task, cleared on LVGL task
+static volatile bool s_dismissRequested = false;
+static volatile bool s_suppressed = false;
 
 static inline char *gifName(int i) { return s_gifNames + (size_t)i * GIF_NAME_LEN; }
 
@@ -50,12 +55,59 @@ static bool isGifName(const char *name) {
           (ext[3] == 'f' || ext[3] == 'F'));
 }
 
+void GifPlayer_Dismiss(void) {
+  s_startRequested = false;
+  s_dismissRequested = true;
+}
+
+void GifPlayer_SetSuppressed(bool suppressed) {
+  s_suppressed = suppressed;
+  if (suppressed) {
+    s_startRequested = false;
+    s_dismissRequested = true;
+  }
+}
+
+void GifPlayer_RescanFiles(void) {
+  s_gifCount = 0;
+  s_lastGifPlayed = -1;
+  if (!s_gifNames) {
+    GifPlayer_ScanFiles();
+    return;
+  }
+
+  File dir = SD_MMC.open(GIF_DIR);
+  if (!dir || !dir.isDirectory()) {
+    printf("GifPlayer: %s not found on rescan\r\n", GIF_DIR);
+    return;
+  }
+
+  File file = dir.openNextFile();
+  while (file && s_gifCount < MAX_GIFS) {
+    if (!file.isDirectory()) {
+      const char *name = file.name();
+      const char *base = name;
+      const char *slash = strrchr(name, '/');
+      if (slash) base = slash + 1;
+      if (isGifName(base)) {
+        strncpy(gifName(s_gifCount), base, GIF_NAME_LEN - 1);
+        gifName(s_gifCount)[GIF_NAME_LEN - 1] = '\0';
+        s_gifCount++;
+      }
+    }
+    file = dir.openNextFile();
+  }
+  dir.close();
+  printf("GifPlayer: rescan found %d GIF(s)\r\n", s_gifCount);
+}
+
 void GifPlayer_ScanFiles() {
   s_gifNames = (char *)gifAlloc((size_t)MAX_GIFS * GIF_NAME_LEN);
   if (!s_gifNames) {
     printf("GifPlayer: PSRAM alloc for filename list failed\r\n");
     return;
   }
+  s_gifCount = 0;
 
   File dir = SD_MMC.open(GIF_DIR);
   if (!dir || !dir.isDirectory()) {
@@ -99,8 +151,6 @@ static bool s_gifOpen = false;
 static bool s_gifActive = false;   // currently decoding/showing frames
 static int s_gifOffX = 0, s_gifOffY = 0;
 static unsigned long s_nextFrameDueMs = 0;
-
-static volatile bool s_startRequested = false;  // set on audio task, cleared on LVGL task
 
 // ---- AnimatedGIF file I/O callbacks (wrap Arduino File/SD_MMC) --------
 
@@ -214,6 +264,8 @@ void GifPlayer_InitUI() {
 }
 
 void GifPlayer_OnTrackChanged() {
+  if (s_suppressed) return;
+  if (LCD_IsAsleep()) return;
   if (s_gifCount <= 0) return;
   s_startRequested = true;
 }
@@ -264,6 +316,19 @@ static void startNextGif() {
 
 void GifPlayer_Poll() {
   if (!s_canvasBuf || !s_overlay) return;
+
+  if (s_dismissRequested) {
+    s_dismissRequested = false;
+    s_startRequested = false;
+    lv_obj_add_flag(s_overlay, LV_OBJ_FLAG_HIDDEN);
+    s_gifActive = false;
+    if (s_gifOpen) {
+      s_gif.close();
+      s_gifOpen = false;
+    }
+  }
+
+  if (s_suppressed || LCD_IsAsleep()) return;
 
   // Only process track-change GIF requests if we're not already playing a GIF
   // (allows startup GIF to play uninterrupted)

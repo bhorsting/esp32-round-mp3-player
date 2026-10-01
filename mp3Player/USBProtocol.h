@@ -9,6 +9,8 @@ enum USBCommand : uint8_t {
   CMD_GET_STATS = 0x04,
   CMD_CREATE_DIR = 0x05,
   CMD_GET_FILE_INFO = 0x06,
+  CMD_UPLOAD_MODE_ENTER = 0x07,
+  CMD_UPLOAD_MODE_EXIT = 0x08,
 };
 
 // WebUSB response type (sent to device)
@@ -19,6 +21,7 @@ enum USBResponse : uint8_t {
   RESP_STATS = 0x84,
   RESP_DIR_ACK = 0x85,
   RESP_FILE_INFO = 0x86,
+  RESP_UPLOAD_MODE_ACK = 0x87,
   RESP_ERROR = 0x90,
 };
 

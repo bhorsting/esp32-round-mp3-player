@@ -5,6 +5,7 @@ const RESP_YMODEM_READY = 0x83;
 const RESP_STATS = 0x84;
 const RESP_DIR_ACK = 0x85;
 const RESP_FILE_INFO = 0x86;
+const RESP_UPLOAD_MODE_ACK = 0x87;
 const RESP_ERROR = 0x90;
 
 // USBProtocol command types
@@ -14,6 +15,8 @@ const CMD_YMODEM_START = 0x03;
 const CMD_GET_STATS = 0x04;
 const CMD_CREATE_DIR = 0x05;
 const CMD_GET_FILE_INFO = 0x06;
+const CMD_UPLOAD_MODE_ENTER = 0x07;
+const CMD_UPLOAD_MODE_EXIT = 0x08;
 
 class ProtocolParser {
   static parseResponse(data) {

@@ -39,3 +39,13 @@ void GifPlayer_PlayStartup(const char *filename);
 // True for ~400 ms after a GIF dismiss tap — LVGL should ignore touch so
 // the same press cannot land on widgets under the overlay.
 bool GifPlayer_ShouldIgnoreTouch(void);
+
+// Hide overlay and close the open GIF (safe to call from the audio task —
+// actual LVGL work happens in GifPlayer_Poll).
+void GifPlayer_Dismiss(void);
+
+// Re-scan /GIF on the SD card (audio/SD task only — no LVGL).
+void GifPlayer_RescanFiles(void);
+
+// While true, GifPlayer_Poll will not start new track-change GIFs.
+void GifPlayer_SetSuppressed(bool suppressed);

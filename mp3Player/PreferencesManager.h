@@ -13,7 +13,7 @@ public:
   uint8_t getVolume(uint8_t defaultVal = 10);
   void setVolume(uint8_t volume);
 
-  uint8_t getBrightness(uint8_t defaultVal = 50);
+  uint8_t getBrightness(uint8_t defaultVal = 30);
   void setBrightness(uint8_t brightness);
 
   String getLastTrack(const String &defaultVal = "");

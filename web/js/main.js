@@ -20,9 +20,11 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('[App] Initialized');
 });
 
-// Allow reconnecting after disconnect
-window.addEventListener('beforeunload', async () => {
-  if (webusb_manager && webusb_manager.isConnected()) {
-    await webusb_manager.disconnect();
+// Best-effort EXIT before the tab closes. beforeunload cannot reliably
+// await, but kicking off the write is still better than nothing — the
+// device also has a 2-minute USB-idle timeout as a backstop.
+window.addEventListener('beforeunload', () => {
+  if (file_manager_ui && webusb_manager && webusb_manager.isConnected()) {
+    file_manager_ui.leaveUploadMode();
   }
 });

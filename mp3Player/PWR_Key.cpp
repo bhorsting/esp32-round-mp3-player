@@ -15,7 +15,8 @@ void Restart(void)
 
 void Shutdown(void)
 {
-  printf("PWR: shutting down (BAT_Control LOW)\r\n");
+  // Do not printf here — stdout shares USB CDC with the binary file-manager
+  // protocol and any text corrupts framed responses.
   Set_Backlight(0);
   LCD_Backlight = 0;
   digitalWrite(PWR_Control_PIN, LOW);
@@ -37,8 +38,6 @@ void PWR_Init(void)
   } else {
     BAT_State = 2;  // USB boot or already released → ready for long-press off
   }
-  printf("PWR: latched (Key=%d State=%u)\r\n",
-         digitalRead(PWR_KEY_Input_PIN), (unsigned)BAT_State);
 }
 
 void PWR_Loop(void)
@@ -72,7 +71,6 @@ void PWR_CheckBattery(float volts)
   if (volts < BAT_LOW_VOLTS) {
     if (batLowCount < 255) batLowCount++;
     if (batLowCount >= BAT_LOW_COUNT_MAX) {
-      printf("PWR: battery low (%.2f V) — shutting down\r\n", volts);
       Shutdown();
     }
   } else {
